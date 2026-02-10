@@ -3,74 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strict 3.5x5 Print System</title>
+    <title>3.5x5 Editor: Perfect Border</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
     <style>
         :root { --primary: #2563eb; --dark: #1e293b; --success: #16a34a; }
         body { 
             margin: 0; padding: 20px; 
-            background-color: #f8fafc; 
+            background-color: #f1f5f9; 
             font-family: 'Segoe UI', sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
         }
 
-        /* --- EDITOR PANEL --- */
-        .editor-panel {
+        /* --- EDITOR CONTAINER --- */
+        .editor-container {
             background: white;
-            padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             width: 100%;
             max-width: 900px;
+            overflow: hidden;
             margin-bottom: 20px;
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 20px;
+            display: flex;
+            flex-direction: column;
         }
 
-        .preview-box {
-            width: 100%;
-            height: 300px;
+        /* --- HEADER --- */
+        .header-bar {
+            background: var(--dark);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-bar h2 { margin: 0; font-size: 18px; font-weight: 500; }
+
+        /* --- STEPS VIEW --- */
+        .step-view {
+            padding: 20px;
+            display: none; 
+            min-height: 400px;
+        }
+        .step-view.active { display: block; }
+
+        /* Step 1: Cropper Specifics */
+        .crop-area {
+            height: 400px;
+            background: #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #rawImage { max-width: 100%; }
+
+        /* Step 2: Adjust Specifics */
+        .adjust-layout {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+        .preview-final {
             background: #e2e8f0;
             border: 2px dashed #cbd5e1;
             border-radius: 8px;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 400px;
             overflow: hidden;
         }
-
-        .preview-box img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+        .preview-final img {
+            max-width: 90%;
+            max-height: 90%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 4px solid black; /* Preview the border in the adjusting phase too */
         }
 
-        .controls {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+        /* --- CONTROLS --- */
+        .controls-sidebar {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
         }
-
-        label { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 5px; display: block; }
+        
+        label { font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 5px; display: block; }
         input[type=range] { width: 100%; margin-bottom: 15px; accent-color: var(--primary); }
 
-        .btn { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; margin-bottom: 8px; font-size: 14px; }
-        .btn-upload { background: #64748b; }
-        .btn-add { background: var(--primary); }
-        .btn-print { background: var(--success); width: 100%; margin-top: 10px; }
+        .btn { 
+            padding: 10px 20px; border: none; border-radius: 6px; 
+            cursor: pointer; font-weight: bold; color: white; font-size: 14px; 
+            transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-blue { background: var(--primary); }
+        .btn-green { background: var(--success); width: 100%; margin-top: 10px; padding: 12px; }
+        .btn-gray { background: #64748b; }
 
-        /* --- A4 CANVAS --- */
-        .canvas-container-wrapper {
+        .toolbar {
+            padding: 15px 20px;
+            background: #f1f5f9;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* --- PRINT AREA --- */
+        .canvas-area {
             box-shadow: 0 0 20px rgba(0,0,0,0.15);
             background: white;
             border: 1px solid #ddd;
         }
 
         @media print {
-            .editor-panel, h2, .instruction { display: none !important; }
+            .editor-container, .instruction { display: none !important; }
             body { background: white; margin: 0; padding: 0; }
-            .canvas-container-wrapper { box-shadow: none; border: none; margin: 0; }
+            .canvas-area { box-shadow: none; border: none; margin: 0; }
             canvas { width: 210mm; height: 297mm; } 
             @page { size: A4; margin: 0; }
         }
@@ -78,182 +129,87 @@
 </head>
 <body>
 
-    <h2>Strict 3.5" x 5" Print Layout</h2>
+    <div class="instruction" style="width: 100%; max-width: 900px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <h3 style="margin:0 0 5px 0; color: var(--dark);">Passport Photo Maker</h3>
+            <span style="font-size: 13px; color: #64748b;">Current Size: <b>3.5 x 5 Inches</b></span>
+        </div>
+        <button class="btn btn-green" onclick="window.print()" style="width: auto; margin:0;">🖨️ Print Sheet</button>
+    </div>
 
-    <div class="editor-panel">
-        <div class="preview-box">
-            <span id="placeholder" style="color:#94a3b8">No Image</span>
-            <img id="previewImg" style="display:none;">
+    <div class="editor-container">
+        <div class="header-bar">
+            <span id="stepTitle">Step 1: Select & Crop</span>
+            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(event)">
+            <button class="btn btn-gray" style="font-size: 12px; padding: 5px 10px;" onclick="document.getElementById('fileInput').click()">📂 New Photo</button>
         </div>
 
-        <div class="controls">
-            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="loadImage(event)">
-            <button class="btn btn-upload" onclick="document.getElementById('fileInput').click()">📂 Select Photo</button>
+        <div id="step1" class="step-view active">
+            <div class="crop-area">
+                <div id="uploadPrompt" style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#94a3b8;">
+                    <span style="font-size: 40px;">📂</span>
+                    <p><b>Click "New Photo"</b><br>or Paste (Ctrl+V)</p>
+                </div>
+                <img id="rawImage" style="display:none;">
+            </div>
+            <div class="toolbar">
+                <button class="btn btn-blue" onclick="goToStep2()">Next: Adjust Colors ➡️</button>
+            </div>
+        </div>
 
-            <label>Brightness</label>
-            <input type="range" id="bright" min="0.5" max="2.0" step="0.05" value="1.0" oninput="updatePreview()">
+        <div id="step2" class="step-view">
+            <div class="adjust-layout">
+                <div class="preview-final">
+                    <img id="croppedResult">
+                </div>
+                <div class="controls-sidebar">
+                    <label>Brightness</label>
+                    <input type="range" id="bright" min="0.5" max="2.0" step="0.05" value="1.0" oninput="applyVisualFilters()">
 
-            <label>Contrast</label>
-            <input type="range" id="contrast" min="0.5" max="2.0" step="0.05" value="1.0" oninput="updatePreview()">
+                    <label>Contrast</label>
+                    <input type="range" id="contrast" min="0.5" max="2.0" step="0.05" value="1.0" oninput="applyVisualFilters()">
 
-            <label>Fairness / Saturation</label>
-            <input type="range" id="saturate" min="0" max="3.0" step="0.1" value="1.0" oninput="updatePreview()">
+                    <label>Saturation</label>
+                    <input type="range" id="saturate" min="0" max="3.0" step="0.1" value="1.0" oninput="applyVisualFilters()">
 
-            <button class="btn btn-add" onclick="addExactSizePhoto()">⬇️ Add Exact 3.5" x 5"</button>
-            <button class="btn btn-print" onclick="window.print()">🖨️ Print A4 Sheet</button>
+                    <button class="btn btn-green" onclick="addToCanvas()">⬇️ Add to Sheet</button>
+                </div>
+            </div>
+            <div class="toolbar" style="justify-content: space-between;">
+                <button class="btn btn-gray" onclick="backToStep1()">⬅️ Back to Crop</button>
+                <span style="font-size:12px; color:#64748b; align-self:center;">Filters are applied only to this photo</span>
+            </div>
         </div>
     </div>
 
-    <div class="instruction" style="font-size:13px; color:#666; margin-bottom:10px;">
-        * Drag to move. Use top handle to Rotate. <br>
-        * The frame is LOCKED to <b>3.5 x 5 inches</b>.
-    </div>
-
-    <div class="canvas-container-wrapper">
+    <div class="canvas-area">
         <canvas id="a4Canvas" width="794" height="1123"></canvas>
     </div>
 
-    <canvas id="procCanvas" style="display:none;"></canvas>
-
     <script>
         // --- CONSTANTS ---
-        // 96 DPI is standard for web-to-print
         const DPI = 96;
         const W_35 = 3.5 * DPI; // 336px
         const H_50 = 5.0 * DPI; // 480px
 
-        // --- SETUP FABRIC CANVAS ---
-        const canvas = new fabric.Canvas('a4Canvas', {
-            backgroundColor: 'white',
-            preserveObjectStacking: true
+        // --- STATE ---
+        let cropper = null;
+        let currentCroppedDataUrl = null;
+
+        // --- FABRIC SETUP ---
+        const canvas = new fabric.Canvas('a4Canvas', { backgroundColor: 'white' });
+        
+        // --- EVENT LISTENERS ---
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file' && item.type.includes('image/')) {
+                    loadFile(item.getAsFile());
+                }
+            }
         });
 
-        // --- IMAGE LOADING ---
-        let originalDataUrl = null;
-
-        function loadImage(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                originalDataUrl = e.target.result;
-                const img = document.getElementById('previewImg');
-                img.src = originalDataUrl;
-                img.style.display = 'block';
-                document.getElementById('placeholder').style.display = 'none';
-                
-                // Reset sliders
-                document.getElementById('bright').value = 1.0;
-                document.getElementById('contrast').value = 1.0;
-                document.getElementById('saturate').value = 1.0;
-                updatePreview();
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function updatePreview() {
-            if (!originalDataUrl) return;
-            const img = document.getElementById('previewImg');
-            const b = document.getElementById('bright').value;
-            const c = document.getElementById('contrast').value;
-            const s = document.getElementById('saturate').value;
-            img.style.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
-        }
-
-        // --- CORE LOGIC: ADD STRICT 3.5x5 PHOTO ---
-        function addExactSizePhoto() {
-            if (!originalDataUrl) return alert("Please select a photo first.");
-
-            // 1. Process the image with filters (Brightness/Contrast)
-            const procCanvas = document.getElementById('procCanvas');
-            const ctx = procCanvas.getContext('2d');
-            const sourceImg = document.getElementById('previewImg');
-
-            // Use natural dimensions for high quality
-            procCanvas.width = sourceImg.naturalWidth;
-            procCanvas.height = sourceImg.naturalHeight;
-
-            // Apply filters
-            const b = document.getElementById('bright').value;
-            const c = document.getElementById('contrast').value;
-            const s = document.getElementById('saturate').value;
-            ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
-            ctx.drawImage(sourceImg, 0, 0, procCanvas.width, procCanvas.height);
-
-            const processedData = procCanvas.toDataURL('image/jpeg', 1.0);
-
-            // 2. Add to Fabric Canvas with STRICT CROP
-            fabric.Image.fromURL(processedData, function(img) {
-                
-                // Calculate aspect ratios
-                const imgRatio = img.width / img.height;
-                const targetRatio = W_35 / H_50; // 0.7
-
-                let scaleFactor;
-                
-                // "Cover" logic: ensure image fills the 3.5x5 box completely
-                if (imgRatio > targetRatio) {
-                    // Image is wider than box: scale by height
-                    scaleFactor = H_50 / img.height;
-                } else {
-                    // Image is taller than box: scale by width
-                    scaleFactor = W_35 / img.width;
-                }
-
-                img.set({
-                    scaleX: scaleFactor,
-                    scaleY: scaleFactor,
-                    originX: 'center',
-                    originY: 'center'
-                });
-
-                // Create a Group to enforce the frame
-                // We use a clipPath to cut off excess parts
-                const clipRect = new fabric.Rect({
-                    width: W_35,
-                    height: H_50,
-                    originX: 'center',
-                    originY: 'center',
-                    absolutePositioned: true
-                });
-
-                // Since clipping inside groups is tricky in older Fabric versions, 
-                // we will use the Pattern/Crop approach or a simple frame overlay.
-                // The most robust way for "Strict Size" is to Crop the image object itself.
-
-                // Let's use the standard method: Center Crop
-                const group = new fabric.Group([img], {
-                    left: 50,
-                    top: 50,
-                    width: W_35,
-                    height: H_50,
-                    clipPath: new fabric.Rect({
-                        width: W_35,
-                        height: H_50,
-                        originX: 'center',
-                        originY: 'center'
-                    })
-                });
-
-                // Add a border to visualize the cut
-                const border = new fabric.Rect({
-                    width: W_35,
-                    height: H_50,
-                    fill: 'transparent',
-                    stroke: '#ccc',
-                    strokeWidth: 1,
-                    originX: 'center',
-                    originY: 'center'
-                });
-                
-                group.add(border);
-
-                canvas.add(group);
-                canvas.setActiveObject(group);
-            });
-        }
-
-        // --- KEYBOARD SHORTCUTS ---
         window.addEventListener('keydown', (e) => {
             if (e.key === "Delete" || e.key === "Backspace") {
                 const activeObjects = canvas.getActiveObjects();
@@ -264,6 +220,131 @@
             }
         });
 
+        function handleFile(event) {
+            if(event.target.files[0]) loadFile(event.target.files[0]);
+        }
+
+        // --- STEP 1: LOAD & CROP ---
+        function loadFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // UI Reset
+                document.getElementById('step1').classList.add('active');
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('uploadPrompt').style.display = 'none';
+                
+                // Image Setup
+                const img = document.getElementById('rawImage');
+                img.src = e.target.result;
+                img.style.display = 'block';
+
+                if(cropper) cropper.destroy();
+
+                cropper = new Cropper(img, {
+                    aspectRatio: 3.5 / 5,
+                    viewMode: 1,
+                    autoCropArea: 0.9,
+                    background: false
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- STEP 1 -> STEP 2 ---
+        function goToStep2() {
+            if(!cropper) return alert("Please upload an image first.");
+
+            currentCroppedDataUrl = cropper.getCroppedCanvas({
+                width: W_35 * 2,
+                height: H_50 * 2
+            }).toDataURL('image/jpeg');
+
+            const resImg = document.getElementById('croppedResult');
+            resImg.src = currentCroppedDataUrl;
+
+            // Reset Sliders
+            document.getElementById('bright').value = 1.0;
+            document.getElementById('contrast').value = 1.0;
+            document.getElementById('saturate').value = 1.0;
+            applyVisualFilters();
+
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step2').classList.add('active');
+            document.getElementById('stepTitle').innerText = "Step 2: Adjust Colors";
+        }
+
+        function backToStep1() {
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step1').classList.add('active');
+            document.getElementById('stepTitle').innerText = "Step 1: Select & Crop";
+        }
+
+        // --- STEP 2: FILTERS ---
+        function applyVisualFilters() {
+            const img = document.getElementById('croppedResult');
+            const b = document.getElementById('bright').value;
+            const c = document.getElementById('contrast').value;
+            const s = document.getElementById('saturate').value;
+            img.style.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
+        }
+
+        // --- FINAL: ADD TO CANVAS WITH FIXED BORDER ---
+        function addToCanvas() {
+            if(!currentCroppedDataUrl) return;
+
+            // 1. Bake Filters
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+            const sourceImg = document.getElementById('croppedResult');
+
+            tempCanvas.width = sourceImg.naturalWidth;
+            tempCanvas.height = sourceImg.naturalHeight;
+
+            const b = document.getElementById('bright').value;
+            const c = document.getElementById('contrast').value;
+            const s = document.getElementById('saturate').value;
+            ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
+            
+            ctx.drawImage(sourceImg, 0, 0);
+            const finalData = tempCanvas.toDataURL('image/jpeg', 0.95);
+
+            fabric.Image.fromURL(finalData, function(img) {
+                // 2. Setup Image: Center Origin, Scaled to 3.5x5
+                img.set({
+                    scaleX: W_35 / img.width,
+                    scaleY: H_50 / img.height,
+                    originX: 'center', // CRITICAL FOR ALIGNMENT
+                    originY: 'center', // CRITICAL FOR ALIGNMENT
+                    left: 0, 
+                    top: 0
+                });
+
+                // 3. Setup Border: Center Origin, Exact Size
+                const border = new fabric.Rect({
+                    width: W_35,
+                    height: H_50,
+                    fill: 'transparent',
+                    stroke: '#000000', // Black Border
+                    strokeWidth: 4,    // Visible Thickness
+                    originX: 'center', // CRITICAL FOR ALIGNMENT
+                    originY: 'center', // CRITICAL FOR ALIGNMENT
+                    left: 0,
+                    top: 0
+                });
+
+                // 4. Group them: Using Center Origin ensures they stack perfectly
+                const group = new fabric.Group([img, border], {
+                    left: 50, 
+                    top: 50,
+                    borderColor: '#2563eb',
+                    cornerSize: 8,
+                    transparentCorners: false
+                });
+
+                canvas.add(group);
+                canvas.setActiveObject(group);
+            });
+        }
     </script>
 </body>
 </html>
