@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strict 3.5x5 Print System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --dark: #1e293b; --success: #16a34a; }
+        body { 
+            margin: 0; padding: 20px; 
+            background-color: #f8fafc; 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+        }
+
+        /* --- EDITOR PANEL --- */
+        .editor-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 900px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+
+        .preview-box {
+            width: 100%;
+            height: 300px;
+            background: #e2e8f0;
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .preview-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        label { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 5px; display: block; }
+        input[type=range] { width: 100%; margin-bottom: 15px; accent-color: var(--primary); }
+
+        .btn { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; margin-bottom: 8px; font-size: 14px; }
+        .btn-upload { background: #64748b; }
+        .btn-add { background: var(--primary); }
+        .btn-print { background: var(--success); width: 100%; margin-top: 10px; }
+
+        /* --- A4 CANVAS --- */
+        .canvas-container-wrapper {
+            box-shadow: 0 0 20px rgba(0,0,0,0.15);
+            background: white;
+            border: 1px solid #ddd;
+        }
+
+        @media print {
+            .editor-panel, h2, .instruction { display: none !important; }
+            body { background: white; margin: 0; padding: 0; }
+            .canvas-container-wrapper { box-shadow: none; border: none; margin: 0; }
+            canvas { width: 210mm; height: 297mm; } 
+            @page { size: A4; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Strict 3.5" x 5" Print Layout</h2>
+
+    <div class="editor-panel">
+        <div class="preview-box">
+            <span id="placeholder" style="color:#94a3b8">No Image</span>
+            <img id="previewImg" style="display:none;">
+        </div>
+
+        <div class="controls">
+            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="loadImage(event)">
+            <button class="btn btn-upload" onclick="document.getElementById('fileInput').click()">📂 Select Photo</button>
+
+            <label>Brightness</label>
+            <input type="range" id="bright" min="0.5" max="2.0" step="0.05" value="1.0" oninput="updatePreview()">
+
+            <label>Contrast</label>
+            <input type="range" id="contrast" min="0.5" max="2.0" step="0.05" value="1.0" oninput="updatePreview()">
+
+            <label>Fairness / Saturation</label>
+            <input type="range" id="saturate" min="0" max="3.0" step="0.1" value="1.0" oninput="updatePreview()">
+
+            <button class="btn btn-add" onclick="addExactSizePhoto()">⬇️ Add Exact 3.5" x 5"</button>
+            <button class="btn btn-print" onclick="window.print()">🖨️ Print A4 Sheet</button>
+        </div>
+    </div>
+
+    <div class="instruction" style="font-size:13px; color:#666; margin-bottom:10px;">
+        * Drag to move. Use top handle to Rotate. <br>
+        * The frame is LOCKED to <b>3.5 x 5 inches</b>.
+    </div>
+
+    <div class="canvas-container-wrapper">
+        <canvas id="a4Canvas" width="794" height="1123"></canvas>
+    </div>
+
+    <canvas id="procCanvas" style="display:none;"></canvas>
+
+    <script>
+        // --- CONSTANTS ---
+        // 96 DPI is standard for web-to-print
+        const DPI = 96;
+        const W_35 = 3.5 * DPI; // 336px
+        const H_50 = 5.0 * DPI; // 480px
+
+        // --- SETUP FABRIC CANVAS ---
+        const canvas = new fabric.Canvas('a4Canvas', {
+            backgroundColor: 'white',
+            preserveObjectStacking: true
+        });
+
+        // --- IMAGE LOADING ---
+        let originalDataUrl = null;
+
+        function loadImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalDataUrl = e.target.result;
+                const img = document.getElementById('previewImg');
+                img.src = originalDataUrl;
+                img.style.display = 'block';
+                document.getElementById('placeholder').style.display = 'none';
+                
+                // Reset sliders
+                document.getElementById('bright').value = 1.0;
+                document.getElementById('contrast').value = 1.0;
+                document.getElementById('saturate').value = 1.0;
+                updatePreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updatePreview() {
+            if (!originalDataUrl) return;
+            const img = document.getElementById('previewImg');
+            const b = document.getElementById('bright').value;
+            const c = document.getElementById('contrast').value;
+            const s = document.getElementById('saturate').value;
+            img.style.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
+        }
+
+        // --- CORE LOGIC: ADD STRICT 3.5x5 PHOTO ---
+        function addExactSizePhoto() {
+            if (!originalDataUrl) return alert("Please select a photo first.");
+
+            // 1. Process the image with filters (Brightness/Contrast)
+            const procCanvas = document.getElementById('procCanvas');
+            const ctx = procCanvas.getContext('2d');
+            const sourceImg = document.getElementById('previewImg');
+
+            // Use natural dimensions for high quality
+            procCanvas.width = sourceImg.naturalWidth;
+            procCanvas.height = sourceImg.naturalHeight;
+
+            // Apply filters
+            const b = document.getElementById('bright').value;
+            const c = document.getElementById('contrast').value;
+            const s = document.getElementById('saturate').value;
+            ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
+            ctx.drawImage(sourceImg, 0, 0, procCanvas.width, procCanvas.height);
+
+            const processedData = procCanvas.toDataURL('image/jpeg', 1.0);
+
+            // 2. Add to Fabric Canvas with STRICT CROP
+            fabric.Image.fromURL(processedData, function(img) {
+                
+                // Calculate aspect ratios
+                const imgRatio = img.width / img.height;
+                const targetRatio = W_35 / H_50; // 0.7
+
+                let scaleFactor;
+                
+                // "Cover" logic: ensure image fills the 3.5x5 box completely
+                if (imgRatio > targetRatio) {
+                    // Image is wider than box: scale by height
+                    scaleFactor = H_50 / img.height;
+                } else {
+                    // Image is taller than box: scale by width
+                    scaleFactor = W_35 / img.width;
+                }
+
+                img.set({
+                    scaleX: scaleFactor,
+                    scaleY: scaleFactor,
+                    originX: 'center',
+                    originY: 'center'
+                });
+
+                // Create a Group to enforce the frame
+                // We use a clipPath to cut off excess parts
+                const clipRect = new fabric.Rect({
+                    width: W_35,
+                    height: H_50,
+                    originX: 'center',
+                    originY: 'center',
+                    absolutePositioned: true
+                });
+
+                // Since clipping inside groups is tricky in older Fabric versions, 
+                // we will use the Pattern/Crop approach or a simple frame overlay.
+                // The most robust way for "Strict Size" is to Crop the image object itself.
+
+                // Let's use the standard method: Center Crop
+                const group = new fabric.Group([img], {
+                    left: 50,
+                    top: 50,
+                    width: W_35,
+                    height: H_50,
+                    clipPath: new fabric.Rect({
+                        width: W_35,
+                        height: H_50,
+                        originX: 'center',
+                        originY: 'center'
+                    })
+                });
+
+                // Add a border to visualize the cut
+                const border = new fabric.Rect({
+                    width: W_35,
+                    height: H_50,
+                    fill: 'transparent',
+                    stroke: '#ccc',
+                    strokeWidth: 1,
+                    originX: 'center',
+                    originY: 'center'
+                });
+                
+                group.add(border);
+
+                canvas.add(group);
+                canvas.setActiveObject(group);
+            });
+        }
+
+        // --- KEYBOARD SHORTCUTS ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key === "Delete" || e.key === "Backspace") {
+                const activeObjects = canvas.getActiveObjects();
+                if (activeObjects.length) {
+                    canvas.discardActiveObject();
+                    activeObjects.forEach((obj) => canvas.remove(obj));
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
