@@ -3,23 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3.5x5 Editor: Multi-Paste Fix</title>
+    <title>3.5x5 Editor: Address Dropdown Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
     <style>
         :root { --primary: #2563eb; --dark: #1e293b; --success: #16a34a; }
-        body { 
-            margin: 0; padding: 20px; 
-            background-color: #f1f5f9; 
-            font-family: 'Segoe UI', sans-serif; 
-            display: flex; flex-direction: column; align-items: center; 
-        }
-        .editor-container {
-            background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            width: 100%; max-width: 1000px; overflow: hidden; margin-bottom: 20px; display: flex; flex-direction: column;
-        }
+        body { margin: 0; padding: 20px; background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; }
+        .editor-container { background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 1000px; overflow: hidden; margin-bottom: 20px; display: flex; flex-direction: column; }
         .header-bar { background: var(--dark); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
         .step-view { padding: 20px; display: none; min-height: 400px; }
         .step-view.active { display: block; }
@@ -31,7 +23,7 @@
         .controls-sidebar { background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
         label { font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 4px; display: block; text-transform: uppercase; }
         input[type=range] { width: 100%; margin-bottom: 12px; accent-color: var(--primary); }
-        textarea, input[type=datetime-local] { width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box; }
+        select, textarea, input[type=datetime-local] { width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; font-size: 13px; margin-bottom: 10px; box-sizing: border-box; }
         .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-blue { background: var(--primary); }
         .btn-green { background: var(--success); width: 100%; margin-top: 10px; padding: 12px; }
@@ -85,7 +77,13 @@
 
                     <hr style="margin: 10px 0; border: 0; border-top: 1px solid #e2e8f0;">
                     
-                    <label>📍 Edit Address</label>
+                    <label>📍 Select Address</label>
+                    <select id="addressDropdown" onchange="updateManualAddress()">
+                        <option value="">-- Manual/Auto Fill --</option>
+                        <option value="115, Rakesh Marg, New Gandhi Nagar, Gandhi Nagar, Nehru Nagar, Ghaziabad, Uttar Pradesh 201001, India">115, Rakesh Marg, Ghaziabad</option>
+                    </select>
+
+                    <label>✍️ Edit Address Manually</label>
                     <textarea id="geoAddress" rows="3"></textarea>
                     
                     <label>🛰️ Lat/Long/Alt</label>
@@ -113,19 +111,17 @@
         let currentCroppedDataUrl = null;
         const canvas = new fabric.Canvas('a4Canvas', { backgroundColor: 'white' });
 
-        // LOAD FIXED ICON
         const MAP_ICON_URL = "https://play-lh.googleusercontent.com/VgtlIEKhAL7C3l2VhvqvTtCr7wwtp_ddFuP1iSe-hbu_nE2x5BSW-548zRzM4hyr7A";
         let fixedMapIcon = new Image();
         fixedMapIcon.crossOrigin = "anonymous"; 
         fixedMapIcon.src = MAP_ICON_URL;
 
-        // FIXED PASTE LISTENER: Works every time
         window.addEventListener('paste', e => {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.kind === 'file' && item.type.startsWith('image/')) {
                     const blob = item.getAsFile();
-                    backToStep1(); // Ensure we are in crop mode when a new photo is pasted
+                    backToStep1(); 
                     loadFile(blob);
                 }
             }
@@ -141,7 +137,7 @@
                 img.src = e.target.result; 
                 img.style.display = 'block';
                 if(cropper) {
-                    cropper.replace(e.target.result); // Use replace to handle subsequent pastes
+                    cropper.replace(e.target.result); 
                 } else {
                     cropper = new Cropper(img, { aspectRatio: 3.5 / 5, viewMode: 1 });
                 }
@@ -165,7 +161,6 @@
             fetchLocation();
             document.getElementById('step1').classList.remove('active');
             document.getElementById('step2').classList.add('active');
-            document.getElementById('stepTitle').innerText = "Step 2: Adjust & Tag";
         }
 
         function fetchLocation() {
@@ -180,9 +175,20 @@
                         const data = await res.json();
                         const addr = data.display_name.replace(/[^\w\s,]/gi, '');
                         const pin = data.address.postcode || "";
-                        document.getElementById('geoAddress').value = `${addr} ${pin}`.trim();
-                    } catch(e) { document.getElementById('geoAddress').value = "Manual address entry required."; }
+                        if (!document.getElementById('addressDropdown').value) {
+                             document.getElementById('geoAddress').value = `${addr} ${pin}`.trim();
+                        }
+                    } catch(e) { }
                 });
+            }
+        }
+
+        // New function to handle dropdown selection
+        function updateManualAddress() {
+            const dropdown = document.getElementById('addressDropdown');
+            const manualText = document.getElementById('geoAddress');
+            if (dropdown.value) {
+                manualText.value = dropdown.value;
             }
         }
 
